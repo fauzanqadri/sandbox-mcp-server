@@ -20,7 +20,7 @@ RUN apt-get update \
  && curl -fsSL "https://github.com/golangci/golangci-lint/releases/latest/download/golangci-lint-$(curl -fsSL https://api.github.com/repos/golangci/golangci-lint/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')-linux-${TARGETARCH}.tar.gz" \
       | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '*/golangci-lint' || true
 
-ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
+ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin
 RUN useradd -m -u 1000 -s /bin/bash sandbox && mkdir -p /workspace /data && chown -R 1000:1000 /workspace /data
 USER 1000
 WORKDIR /workspace
