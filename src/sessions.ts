@@ -58,7 +58,18 @@ export class Sessions {
 
   start(everyMs = config.sweepMs()) {
     this.#timer ??= setInterval(() => void this.sweep(), everyMs);
+    void this.stopOrphans();
     return this;
+  }
+
+  /** Stop sandboxes left running by a previous server process: the idle sweep only sees
+   *  sessions this process has served. The next call reattaches, so nothing on disk is lost. */
+  async stopOrphans(): Promise<string[]> {
+    const keys = await this.backend.list().catch(() => [] as string[]);
+    const orphans = keys.filter((k) => !this.#live.has(k));
+    for (const key of orphans) await this.backend.stop(key).catch((e) => console.error(JSON.stringify({ at: "orphan", key, error: String(e) })));
+    if (orphans.length) console.log(JSON.stringify({ at: "orphan", stopped: orphans.length }));
+    return orphans;
   }
   stop() { clearInterval(this.#timer); this.#timer = undefined; }
   get size() { return this.#live.size; }
