@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { pickBackend, type Backend } from "./backend";
+import { pickBackend, SESSION_KEY, type Backend, type Handle } from "./backend";
 import { config } from "./config";
-import { BadSession, Sessions } from "./sessions";
+import { BadSession, Sessions, sessionState } from "./sessions";
 import { registerTools } from "./tools";
 
 export interface ServerOpts {
@@ -20,6 +20,13 @@ export interface Started { url: string; port: number; sessions: Sessions; stop()
 
 const MCP_PATH = "/mcp";
 const HEADER = "x-sandbox-session";
+
+/** Stand-in handle for requests that list tools but never run one. */
+const NO_SANDBOX: Handle = {
+  root: config.root(),
+  exec: () => Promise.reject(new Error("no sandbox for this request")),
+  pipe: () => Promise.reject(new Error("no sandbox for this request")),
+};
 
 export async function startServer(o: ServerOpts): Promise<Started> {
   if (!o.token && !o.authDisabled) throw new Error("SLAUDE_SANDBOX_MCP_TOKEN is empty; refusing to serve unauthenticated");
@@ -42,9 +49,18 @@ export async function startServer(o: ServerOpts): Promise<Started> {
       }
 
       const key = (req.headers.get(HEADER) ?? "").trim().toLowerCase();
+      // Only tools/call needs the sandbox. initialize and tools/list answer at once and start
+      // provisioning in the background, so a slow first provision cannot time out the client's
+      // MCP handshake (which then drops every sandbox tool for that turn).
+      const body = req.method === "POST" ? await req.clone().json().catch(() => null) : null;
+      const calls = (Array.isArray(body) ? body : [body]).some((m) => m?.method === "tools/call");
       let s;
       try {
-        s = await sessions.get(key);
+        if (!calls) {
+          if (!SESSION_KEY.test(key)) throw new BadSession("X-Sandbox-Session must be a UUID");
+          sessions.get(key).catch(() => {});
+          s = { state: sessionState(key, NO_SANDBOX) };
+        } else s = await sessions.get(key);
       } catch (e) {
         if (e instanceof BadSession) return new Response(e.message, { status: 400 });
         console.error(JSON.stringify({ at: "ensure", session: key, error: String(e) }));

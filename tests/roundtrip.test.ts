@@ -46,6 +46,20 @@ describe("sandbox MCP server round trip", () => {
     await c.close();
   });
 
+  test("handshake and tools/list do not wait for a slow sandbox; tools/call does", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const local = localBackend((base = mkdtempSync(join(tmpdir(), "sandbox-rt-"))));
+    const slow = { ...local, ensure: async (k: string) => { await gate; return local.ensure(k); } };
+    started = await startServer({ port: 0, token: TOKEN, backend: slow, sweep: false });
+    const c = await client(started.url, S1);
+    expect((await c.listTools()).tools.length).toBe(TOOL_NAMES.length);
+    const pending = call(c, "bash", { command: "echo ready" });
+    release();
+    expect(text(await pending)).toContain("ready");
+    await c.close();
+  });
+
   test("401 without or with a wrong bearer; 400 on a bad session; healthz open", async () => {
     const { url, port } = await boot();
     const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });

@@ -73,7 +73,11 @@ export class Mirrors {
     await mkdir(this.gomod, { recursive: true });
     const r = await run(["go", "mod", "download", "all"], {
       cwd: work,
-      env: cleanEnv({ GOMODCACHE: this.gomod, GOFLAGS: "-mod=mod", GOPRIVATE: "bitbucket.org/Amartha", GONOSUMDB: "bitbucket.org/Amartha" }),
+      // go fetches private modules over https; rewrite to ssh so the clone key is used.
+      env: cleanEnv({
+        GOMODCACHE: this.gomod, GOFLAGS: "-mod=mod", GOPRIVATE: "bitbucket.org/Amartha", GONOSUMDB: "bitbucket.org/Amartha",
+        GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "url.ssh://git@bitbucket.org/.insteadOf", GIT_CONFIG_VALUE_0: "https://bitbucket.org/",
+      }),
       timeoutMs: 1_800_000,
     });
     await rm(work, { recursive: true, force: true });
