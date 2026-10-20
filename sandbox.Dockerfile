@@ -13,6 +13,8 @@ RUN apt-get update \
       ripgrep python3 python3-venv make gcc libc6-dev unzip xz-utils \
  && rm -rf /var/lib/apt/lists/* \
  && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -xz -C /usr/local \
+ # bash -lc sources Debian's /etc/profile, which resets PATH for non-root and drops /usr/local/go/bin.
+ && ln -s /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/ \
  && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
  && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/* \
  && curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash \
