@@ -128,7 +128,8 @@ export async function provision(h: Handle, m: Mirrors): Promise<void> {
   const plugins = await pluginTar();
   if (plugins) check(await h.pipe("mkdir -p /data && tar -C /data -xz", plugins), "plugins");
 
-  const gomod = await stat(m.gomod).then((s) => s.isDirectory(), () => false);
+  // ponytail: a shared read-only mount (docker SANDBOX_GOMOD_VOLUME) replaces the per-sandbox copy.
+  const gomod = !config.gomodVolume() && await stat(m.gomod).then((s) => s.isDirectory(), () => false);
   if (gomod) {
     const tar = await bytes(["tar", "-C", m.gomod, "-cz", "."]);
     check(await h.pipe('mkdir -p "$HOME/go/pkg/mod" && tar -C "$HOME/go/pkg/mod" -xz', tar, 900_000), "go module cache");

@@ -26,6 +26,8 @@ export const config = {
   mirrorsDir: () => opt("SANDBOX_MIRRORS_DIR", "/mirrors"),
   mirrorRefreshMs: () => num("SANDBOX_MIRROR_REFRESH_MIN", 10) * 60_000,
   gomodDir: () => opt("SANDBOX_GOMOD_DIR", "/gomod"),
+  /** docker: named volume holding gomodDir, mounted read-only as every sandbox's GOMODCACHE instead of a 4 GB copy each. */
+  gomodVolume: () => opt("SANDBOX_GOMOD_VOLUME"),
   gitUser: () => opt("SANDBOX_GIT_USER", "Samson"),
   gitEmail: () => opt("SANDBOX_GIT_EMAIL", "samson.aux@amartha.com"),
   /** ssh command for the read-only clone key (mirrors, go mod download). */

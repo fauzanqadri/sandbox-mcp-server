@@ -39,6 +39,7 @@ export function dockerBackend(kind: "docker" | "vps"): Backend {
           "--user", "1000:1000", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "512",
           "-e", `HOME=${root}/.home`, "-e", "CLAUDE_CONFIG_DIR=/data/.claude", "-e", "GOPROXY=off", "-e", "GOFLAGS=-mod=mod", "-e", "GONOSUMDB=*",
           "-v", `${n}-ws:${root}`, "-v", `${n}-data:/data`, "-w", root,
+          ...(config.gomodVolume() ? ["-v", `${config.gomodVolume()}:/gomod:ro`, "-e", "GOMODCACHE=/gomod"] : []),
           config.image(), "sleep", "infinity",
         ], { timeoutMs: 600_000 });
         if (r.code !== 0) throw new Error(`docker run failed: ${r.stderr}`);
