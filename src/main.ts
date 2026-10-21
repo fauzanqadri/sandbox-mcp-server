@@ -49,16 +49,16 @@ export async function startServer(o: ServerOpts): Promise<Started> {
       }
 
       const key = (req.headers.get(HEADER) ?? "").trim().toLowerCase();
-      // Only tools/call needs the sandbox. initialize and tools/list answer at once and start
-      // provisioning in the background, so a slow first provision cannot time out the client's
-      // MCP handshake (which then drops every sandbox tool for that turn).
+      // Only tools/call needs the sandbox, so it is created on the thread's first file or shell
+      // call. initialize and tools/list answer at once: a slow provision must not time out the
+      // client's MCP handshake (which then drops every sandbox tool for that turn), and a thread
+      // that never touches files never costs a sandbox.
       const body = req.method === "POST" ? await req.clone().json().catch(() => null) : null;
       const calls = (Array.isArray(body) ? body : [body]).some((m) => m?.method === "tools/call");
       let s;
       try {
         if (!calls) {
           if (!SESSION_KEY.test(key)) throw new BadSession("X-Sandbox-Session must be a UUID");
-          sessions.get(key).catch(() => {});
           s = { state: sessionState(key, NO_SANDBOX) };
         } else s = await sessions.get(key);
       } catch (e) {

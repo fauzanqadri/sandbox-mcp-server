@@ -46,14 +46,16 @@ describe("sandbox MCP server round trip", () => {
     await c.close();
   });
 
-  test("handshake and tools/list do not wait for a slow sandbox; tools/call does", async () => {
+  test("handshake and tools/list neither wait for nor create a sandbox; tools/call does", async () => {
     let release!: () => void;
+    let ensured = 0;
     const gate = new Promise<void>((r) => { release = r; });
     const local = localBackend((base = mkdtempSync(join(tmpdir(), "sandbox-rt-"))));
-    const slow = { ...local, ensure: async (k: string) => { await gate; return local.ensure(k); } };
+    const slow = { ...local, ensure: async (k: string) => { ensured++; await gate; return local.ensure(k); } };
     started = await startServer({ port: 0, token: TOKEN, backend: slow, sweep: false });
     const c = await client(started.url, S1);
     expect((await c.listTools()).tools.length).toBe(TOOL_NAMES.length);
+    expect(ensured).toBe(0);
     const pending = call(c, "bash", { command: "echo ready" });
     release();
     expect(text(await pending)).toContain("ready");
