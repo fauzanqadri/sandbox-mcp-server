@@ -122,4 +122,30 @@ describe("sandbox MCP server round trip", () => {
     expect(sessions.size).toBe(1);
     await c.close();
   });
+
+  test("DELETE /sandbox destroys the session's sandbox; the next call starts fresh", async () => {
+    const { url, sessions } = await boot();
+    const destroyUrl = new URL("/sandbox", url);
+    const del = (session: string, token = TOKEN) =>
+      fetch(destroyUrl, { method: "DELETE", headers: { "X-Sandbox-Session": session, Authorization: `Bearer ${token}` } });
+    const c = await client(url, S1);
+    await call(c, "bash", { command: "echo hi > gone.txt" });
+    await call(c, "bash", { command: "echo other > kept.txt" }).then(() => {});
+    const c2 = await client(url, S2);
+    await call(c2, "bash", { command: "echo two > kept.txt" });
+
+    expect((await del(S1, "wrong")).status).toBe(401);
+    expect((await del("not-a-uuid")).status).toBe(400);
+    expect((await del(S1)).status).toBe(204);
+    expect((await del(S1)).status).toBe(204); // idempotent
+    expect(sessions.size).toBe(1);
+
+    expect(text(await call(c, "bash", { command: "ls" }))).not.toContain("gone.txt");
+    expect(text(await call(c2, "bash", { command: "cat kept.txt" }))).toContain("two");
+    // DELETE on the MCP path is not a destroy.
+    expect((await fetch(url, { method: "DELETE", headers: { "X-Sandbox-Session": S2, Authorization: `Bearer ${TOKEN}` } })).status).not.toBe(204);
+    expect(text(await call(c2, "bash", { command: "cat kept.txt" }))).toContain("two");
+    await c.close();
+    await c2.close();
+  });
 });

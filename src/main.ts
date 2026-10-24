@@ -19,6 +19,9 @@ export interface ServerOpts {
 export interface Started { url: string; port: number; sessions: Sessions; stop(): Promise<void> }
 
 const MCP_PATH = "/mcp";
+/** Not `DELETE /mcp`: an MCP client may send that when it closes its session, and a
+ *  slaude reload must never wipe the thread's sandbox. */
+const DESTROY_PATH = "/sandbox";
 const HEADER = "x-sandbox-session";
 
 /** Stand-in handle for requests that list tools but never run one. */
@@ -40,7 +43,8 @@ export async function startServer(o: ServerOpts): Promise<Started> {
     async fetch(req) {
       const url = new URL(req.url);
       if (req.method === "GET" && url.pathname === "/healthz") return new Response("ok");
-      if (url.pathname !== MCP_PATH) return new Response("not found", { status: 404 });
+      const destroy = req.method === "DELETE" && url.pathname === DESTROY_PATH;
+      if (url.pathname !== MCP_PATH && !destroy) return new Response("not found", { status: 404 });
 
       if (!o.authDisabled) {
         const auth = req.headers.get("authorization") ?? "";
@@ -49,6 +53,16 @@ export async function startServer(o: ServerOpts): Promise<Started> {
       }
 
       const key = (req.headers.get(HEADER) ?? "").trim().toLowerCase();
+      if (destroy) {
+        if (!SESSION_KEY.test(key)) return new Response("X-Sandbox-Session must be a UUID", { status: 400 });
+        try {
+          await sessions.destroy(key);
+        } catch (e) {
+          console.error(JSON.stringify({ at: "destroy", session: key, error: String(e) }));
+          return new Response(`destroy failed: ${(e as Error).message}`, { status: 502 });
+        }
+        return new Response(null, { status: 204 });
+      }
       // Only tools/call needs the sandbox, so it is created on the thread's first file or shell
       // call. initialize and tools/list answer at once: a slow provision must not time out the
       // client's MCP handshake (which then drops every sandbox tool for that turn), and a thread

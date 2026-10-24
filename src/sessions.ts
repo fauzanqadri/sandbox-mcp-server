@@ -71,6 +71,14 @@ export class Sessions {
     if (orphans.length) console.log(JSON.stringify({ at: "orphan", stopped: orphans.length }));
     return orphans;
   }
+  /** Destroy one session's sandbox and disk now (slaude's `/sandbox off`). Idempotent:
+   *  a key with no sandbox is a no-op at the backend. The next call starts fresh. */
+  async destroy(key: string): Promise<void> {
+    this.#live.delete(key);
+    await this.backend.destroy(key);
+    console.log(JSON.stringify({ at: "destroy", session: key }));
+  }
+
   stop() { clearInterval(this.#timer); this.#timer = undefined; }
   get size() { return this.#live.size; }
 }
