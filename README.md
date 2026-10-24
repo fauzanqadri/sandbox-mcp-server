@@ -2,6 +2,8 @@
 
 One isolated sandbox per slaude thread. slaude's sandbox MCP mode (`SLAUDE_SANDBOX_MCP_URL`) mounts this server under the name `remote`, sends `X-Sandbox-Session: <session uuid>` and `Authorization: Bearer <SLAUDE_SANDBOX_MCP_TOKEN>`, and aliases Bash, Read, Write, Edit, Glob and Grep to the nine tools here. The first call from a new session creates its sandbox; later calls reuse it; idle sandboxes are stopped and, after `SANDBOX_KEEP_DAYS`, destroyed.
 
+Lifecycle, usage, curl smoke test and the full configuration reference: [docs/sandbox-lifecycle.md](docs/sandbox-lifecycle.md).
+
 The tools (`src/vendor/slaude/`) are vendored verbatim from the slaude fork so the contract stays identical; `src/git-push.ts` is a port that pushes from this process with the key mounted here. The sandbox never holds a credential.
 
 ## Run
