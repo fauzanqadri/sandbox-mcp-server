@@ -26,7 +26,10 @@ async function run(argv: string[], o: { cwd?: string; env?: Record<string, strin
 /** Raw bytes of a command's stdout (bundles and tars are binary). */
 async function bytes(argv: string[], o: { cwd?: string; env?: Record<string, string> } = {}): Promise<Uint8Array> {
   const p = Bun.spawn(argv, { cwd: o.cwd, env: o.env ?? cleanEnv(), stdout: "pipe", stderr: "pipe" });
-  const [out, err, code] = await Promise.all([new Response(p.stdout).bytes(), new Response(p.stderr).text(), p.exited]);
+  // arrayBuffer() + Uint8Array, not .bytes(): Bun 1.3.14 returns an ArrayBuffer from .bytes() once a
+  // process stream passes ~100 KB (big go.sum files, every repo bundle), which hash.update rejects.
+  const [buf, err, code] = await Promise.all([new Response(p.stdout).arrayBuffer(), new Response(p.stderr).text(), p.exited]);
+  const out = new Uint8Array(buf);
   if (code !== 0) throw new Error(`${argv[0]} ${argv[1] ?? ""} failed: ${err.trim() || `exit ${code}`}`);
   return out;
 }
