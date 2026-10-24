@@ -22,8 +22,22 @@ RUN apt-get update \
  && curl -fsSL "https://github.com/golangci/golangci-lint/releases/latest/download/golangci-lint-$(curl -fsSL https://api.github.com/repos/golangci/golangci-lint/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')-linux-${TARGETARCH}.tar.gz" \
       | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '*/golangci-lint' || true
 
+# Docker Engine for testcontainers. It only starts under a runtime that allows an inner daemon
+# (SANDBOX_DOCKER_RUNTIME=sysbox-runc on the server): sandbox-init runs as root there and starts
+# dockerd. Under the default runtime the sandbox runs as uid 1000 with no capabilities, so the
+# binaries are present but inert.
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+ && echo "deb [arch=${TARGETARCH} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" \
+      > /etc/apt/sources.list.d/docker.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+      docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin iptables \
+ && rm -rf /var/lib/apt/lists/*
+COPY scripts/sandbox-init /usr/local/bin/sandbox-init
+
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin
-RUN useradd -m -u 1000 -s /bin/bash sandbox && mkdir -p /workspace /data && chown -R 1000:1000 /workspace /data
+RUN useradd -m -u 1000 -s /bin/bash -G docker sandbox && mkdir -p /workspace /data && chown -R 1000:1000 /workspace /data
 USER 1000
 WORKDIR /workspace
 CMD ["sleep", "infinity"]

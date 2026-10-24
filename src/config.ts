@@ -53,6 +53,12 @@ export const config = {
   /** Session wall clock per resume, ms. Vercel caps it per plan. */
   vercelTimeoutMs: () => num("SANDBOX_VERCEL_TIMEOUT_MIN", 60) * 60_000,
   dockerHost: () => opt("SANDBOX_DOCKER_HOST"),
+  /** docker/vps: an OCI runtime for sandboxes, e.g. `sysbox-runc`, which lets each sandbox run its
+   *  own dockerd (testcontainers) unprivileged on the host. Empty = Docker's default runtime. */
+  dockerRuntime: () => opt("SANDBOX_DOCKER_RUNTIME").trim(),
+  /** docker/vps: per-sandbox caps, as `docker run --memory` / `--cpus` take them (e.g. `6g`, `2`). Empty = none. */
+  dockerMemory: () => opt("SANDBOX_DOCKER_MEMORY").trim(),
+  dockerCpus: () => opt("SANDBOX_DOCKER_CPUS").trim(),
   vpsHost: () => opt("SANDBOX_VPS_HOST"),
 
   // git_push (same names as slaude so one Vault path serves both)

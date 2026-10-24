@@ -1,0 +1,10 @@
+#!/bin/sh
+# Sandbox container entrypoint under SANDBOX_DOCKER_RUNTIME (e.g. sysbox-runc): start an inner
+# dockerd for testcontainers, then idle. As uid 1000 (the default runtime) there is no daemon to
+# start, so it only idles. Tool commands arrive through `docker exec -u 1000`.
+if [ "$(id -u)" = "0" ] && command -v dockerd >/dev/null 2>&1; then
+  dockerd --group docker >/var/log/dockerd.log 2>&1 &
+  i=0
+  while [ ! -S /var/run/docker.sock ] && [ "$i" -lt 30 ]; do sleep 1; i=$((i + 1)); done
+fi
+exec sleep infinity

@@ -50,7 +50,7 @@ Provisioning runs once per sandbox (`src/provision.ts:110-139`):
 State kept in the server process, per session: the shell cwd, file read times used by `edit` and `write`, and background job output offsets (`src/sessions.ts:16-21`). A server restart loses it. The cwd resets to `SANDBOX_ROOT`, and `bash_output` returns a job's log from the start.
 
 Known limits:
-- Docker and vps sandboxes have no memory or CPU cap, and use the default bridge network with open egress (`src/backend-docker.ts:37-44`). One heavy `go test` can starve every other sandbox on the host.
+- Docker and vps sandboxes have no memory or CPU cap unless `SANDBOX_DOCKER_MEMORY` / `SANDBOX_DOCKER_CPUS` are set, and they use the default bridge network with open egress. Without a cap, one heavy `go test` can starve every other sandbox on the host.
 - On k8s, the restart stop re-annotates `last-used` on every PVC (`src/backend-k8s.ts:96`). Each server restart pushes back the 7-day delete.
 - `local` never reaps. `vercel` leaves deletion to Vercel snapshot expiry (`src/backend-vercel.ts:81`).
 - A failed provision leaves its container until the next server start stops it.
@@ -160,7 +160,7 @@ Defaults in brackets. Source: `src/config.ts`.
 | Server | `PORT` [8080], `HOST` [0.0.0.0], `SLAUDE_SANDBOX_MCP_TOKEN` (required) |
 | Lifecycle | `SANDBOX_BACKEND` [local], `SANDBOX_IMAGE` [ghcr.io/fauzanqadri/factory-sandbox:latest], `SANDBOX_ROOT` [/workspace], `SANDBOX_IDLE_TTL_MIN` [60], `SANDBOX_KEEP_DAYS` [7], `SANDBOX_SWEEP_SEC` [60] |
 | Provisioning | `SANDBOX_REPOS`, `SANDBOX_MIRRORS_DIR` [/mirrors], `SANDBOX_MIRROR_REFRESH_MIN` [10], `SANDBOX_CLONE_SSH_COMMAND`, `SANDBOX_GOMOD_DIR` [/gomod], `SANDBOX_GOMOD_VOLUME`, `SANDBOX_GIT_USER` [Samson], `SANDBOX_GIT_EMAIL` [samson.aux@amartha.com], `SANDBOX_PLUGIN_DIR`, `SANDBOX_PLUGIN_SOURCE_SELECTOR` |
-| Docker / vps | `SANDBOX_DOCKER_HOST`, `SANDBOX_VPS_HOST` |
+| Docker / vps | `SANDBOX_DOCKER_HOST`, `SANDBOX_VPS_HOST`, `SANDBOX_DOCKER_RUNTIME` (e.g. `sysbox-runc`, section 4), `SANDBOX_DOCKER_MEMORY` (e.g. `6g`, also caps swap), `SANDBOX_DOCKER_CPUS` (e.g. `2`) |
 | k8s | `SANDBOX_NAMESPACE` [default], `SANDBOX_K8S_STORAGE_CLASS` [standard-rwo], `SANDBOX_K8S_DISK` [10Gi], `SANDBOX_K8S_CPU_REQUEST` [1], `SANDBOX_K8S_CPU_LIMIT` [4], `SANDBOX_K8S_MEM_REQUEST` [2Gi], `SANDBOX_K8S_MEM_LIMIT` [8Gi], `SANDBOX_K8S_NODE_SELECTOR`, `SANDBOX_K8S_TOLERATION` |
 | Vercel | `SANDBOX_VERCEL_IMAGE`, `SANDBOX_VERCEL_VCPUS` [2], `SANDBOX_VERCEL_TIMEOUT_MIN` [60], plus `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID` |
 | Push | `SLAUDE_GIT_PUSH_REMOTES`, `SLAUDE_GIT_PUSH_TOKEN`, `SLAUDE_GIT_PUSH_TOKEN_USER` [x-access-token] |
@@ -193,8 +193,25 @@ curl -s -o /dev/null -w '%{http_code}\n' -X DELETE https://<host>/sandbox \
 
 The next tool call for that session starts fresh.
 
+### Docker inside a sandbox (testcontainers)
+
+The sandbox image ships Docker Engine (`docker`, `dockerd`, compose, buildx). Under the default runtime it is inert: the sandbox runs as uid 1000 with no capabilities and never gets the host's Docker socket, so testcontainers reports no Docker environment.
+
+With [Sysbox](https://github.com/nestybox/sysbox) installed on the host and `SANDBOX_DOCKER_RUNTIME=sysbox-runc`, each new sandbox gets its own daemon:
+
+| | Default runtime | `sysbox-runc` |
+|---|---|---|
+| Container starts as | uid 1000, `--cap-drop ALL`, `no-new-privileges` | root, user-namespace mapped to an unprivileged host user by Sysbox |
+| Entrypoint | `sleep infinity` | `sandbox-init`: starts `dockerd --group docker`, waits for the socket, then idles |
+| Tool commands | uid 1000 | uid 1000 (`docker exec -u 1000`, which adds the `docker` group) |
+| Volumes | `-ws`, `-data` | plus `sbx-<uuid>-docker` at `/var/lib/docker`, so pulled test images survive a stop |
+| `--pids-limit` | 512 | 4096 |
+
+Only sandboxes created after the change get the runtime; destroy the old ones or let them reap. Set `SANDBOX_DOCKER_MEMORY` with it: Postgres, Kafka and `go test` in one sandbox can take most of a 16 GB host. Each sandbox pulls its own test images on first use; the daemon log is `/var/log/dockerd.log` inside the sandbox.
+
 ## 5. Not built yet
 
 Tracked in relay `factory/16-mastra-parity-sandbox-providers.md`:
-- A memory and CPU cap per docker sandbox.
+- `git_fetch`: bringing branches pushed after the sandbox was created into it.
+- A choice of image per thread (named images).
 - An egress policy for docker sandboxes, and a NetworkPolicy on k8s.
