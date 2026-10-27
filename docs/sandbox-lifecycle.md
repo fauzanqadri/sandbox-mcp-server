@@ -13,7 +13,7 @@ A sandbox belongs to one `X-Sandbox-Session` value, a lowercase UUID (`src/backe
 | `local` | directory `$TMPDIR/sandbox-mcp/sbx-<uuid>` (`src/backend-local.ts`), tests and development only, no isolation | the directory |
 | `vercel` | a Vercel Sandbox (`src/backend-vercel.ts`), unverified | Vercel snapshot |
 
-The sandbox holds no credential and no git remote. Go runs with `GOPROXY=off` against a module cache that the server fills.
+The sandbox holds no credential and no git remote; `git_fetch` brings branches in from the server mirror. Go runs with `GOPROXY=off` against a module cache that the server fills.
 
 ## 2. Lifecycle
 
@@ -138,7 +138,7 @@ sequenceDiagram
     M->>M: audit line to stdout
 ```
 
-### The nine tools
+### The ten tools
 
 | Tool | Does | Runs in |
 |---|---|---|
@@ -148,6 +148,7 @@ sequenceDiagram
 | `read`, `write`, `edit` | File tools with the same contract as the slaude built-ins | sandbox |
 | `glob`, `grep` | Search, with `rg` when present | sandbox |
 | `git_push` | Pushes `factory/<name>`: the sandbox makes a git bundle, the server checks the SHA and pushes with its own key, never with force, only to `SLAUDE_GIT_PUSH_REMOTES` (`src/git-push.ts`) | split |
+| `git_fetch` | Brings branches in: the server refreshes the repo's mirror (`/mirrors/<repo>.git`, clone key, 60 s cap), bundles the named branches and fetches them into the sandbox as `refs/remotes/mirror/<branch>`. Branch names only, at most 20 per call; a repo outside `SANDBOX_REPOS` has no mirror and is refused (`src/git-fetch.ts`) | split |
 
 slaude asks the user before every `git_push`. The server itself does not ask.
 
@@ -212,6 +213,5 @@ Only sandboxes created after the change get the runtime; destroy the old ones or
 ## 5. Not built yet
 
 Tracked in relay `factory/16-mastra-parity-sandbox-providers.md`:
-- `git_fetch`: bringing branches pushed after the sandbox was created into it.
 - A choice of image per thread (named images).
 - An egress policy for docker sandboxes, and a NetworkPolicy on k8s.

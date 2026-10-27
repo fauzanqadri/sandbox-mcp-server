@@ -104,7 +104,7 @@ describe("sandbox MCP server round trip", () => {
     started = await startServer({ port: 0, token: "", authDisabled: true, backend: localBackend(base), sweep: false });
     const c = new Client({ name: "t", version: "0" });
     await c.connect(new StreamableHTTPClientTransport(new URL(started.url), { requestInit: { headers: { "X-Sandbox-Session": S1 } } }));
-    expect((await c.listTools()).tools.length).toBe(9);
+    expect((await c.listTools()).tools.length).toBe(TOOL_NAMES.length);
     await c.close();
   });
 

@@ -1,13 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { gitFetchTool } from "./git-fetch";
 import { gitPushTool } from "./git-push";
 import type { SessionState } from "./sessions";
 import { bashKillTool, bashOutputTool, bashTool } from "./vendor/slaude/tools/bash";
 import { editTool, fail, readTool, writeTool, type ToolText } from "./vendor/slaude/tools/files";
 import { globTool, grepTool } from "./vendor/slaude/tools/search";
 
-/** The nine tools slaude's sandbox MCP mode expects, by exact name (slaude tests/remote/mcp.test.ts). */
-export const TOOL_NAMES = ["bash", "bash_output", "bash_kill", "read", "write", "edit", "glob", "grep", "git_push"] as const;
+/** The nine tools slaude's sandbox MCP mode expects, by exact name (slaude tests/remote/mcp.test.ts), plus git_fetch. */
+export const TOOL_NAMES = ["bash", "bash_output", "bash_kill", "read", "write", "edit", "glob", "grep", "git_push", "git_fetch"] as const;
 
 /** Register the tools on a fresh McpServer over one session's state. */
 export function registerTools(server: McpServer, st: SessionState, sessionKey: string) {
@@ -55,6 +56,10 @@ export function registerTools(server: McpServer, st: SessionState, sessionKey: s
     remote: z.string(),
     dir: z.string().optional(),
   }, (i) => gitPushTool(st.files, i));
+  reg("git_fetch", "Bring branches from the server-side mirror into the sandbox as mirror/<branch> (for example mirror/master, or a factory/<name> branch a human rebased). The sandbox has no remote, so `git fetch` from bash always fails; use this, then `git rebase mirror/master` or `git reset --hard mirror/<branch>`. Pushes nothing.", {
+    refs: z.array(z.string()).min(1),
+    dir: z.string().optional(),
+  }, (i) => gitFetchTool({ exec: st.files.exec, root: st.files.root, pipe: st.pipe }, i));
 }
 
 /** Strip the audit-only exit code, log one JSON line per call, never throw into the transport. */
@@ -71,7 +76,7 @@ async function guarded(session: string, tool: string, input: any, fn: () => Prom
   }
   const { exitCode, ...out } = r;
   const subject = tool === "bash" ? String(input?.command ?? "").trim().split(/\s+/)[0]
-    : String(input?.file_path ?? input?.path ?? input?.bash_id ?? input?.shell_id ?? input?.branch ?? "").split("/").pop();
+    : String(input?.file_path ?? input?.path ?? input?.bash_id ?? input?.shell_id ?? input?.branch ?? input?.refs?.join(",") ?? "").split("/").pop();
   console.log(JSON.stringify({ ts: new Date().toISOString(), session, tool, subject, outcome, code: exitCode, ms: Math.round(performance.now() - t0) }));
   return out;
 }

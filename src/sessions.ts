@@ -4,7 +4,7 @@ import type { BashCtx } from "./vendor/slaude/tools/bash";
 import { ReadState, type FileCtx } from "./vendor/slaude/tools/files";
 
 /** The two closure objects slaude's createRemoteMcp keeps per thread: file mtimes, cwd, background job offsets. */
-export interface SessionState { files: FileCtx; shell: BashCtx }
+export interface SessionState { files: FileCtx; shell: BashCtx; pipe: Handle["pipe"] }
 
 export interface Session {
   key: string;
@@ -17,6 +17,7 @@ export function sessionState(key: string, h: Handle): SessionState {
   return {
     files: { exec: h.exec, root: h.root, state: new ReadState() },
     shell: { exec: h.exec, root: h.root, sessionKey: key, cwd: { value: h.root }, bg: new Map() },
+    pipe: h.pipe,
   };
 }
 

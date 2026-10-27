@@ -26,6 +26,8 @@ bun test
 
 Every sandbox starts from `SANDBOX_IMAGE` and is provisioned once: the repos in `SANDBOX_REPOS` (cloned from server-side mirrors, remote stripped, identity `SANDBOX_GIT_USER` / `SANDBOX_GIT_EMAIL`), the plugin tree at `/data/.claude/plugins`, and the Go module cache with `GOPROXY=off`.
 
-## Push
+## Push and fetch
 
 `git_push` bundles `factory/<name>` out of the sandbox and pushes it from here, only to a remote listed in `SLAUDE_GIT_PUSH_REMOTES`, never with force. SSH remotes use `GIT_SSH_COMMAND`; HTTPS remotes use `SLAUDE_GIT_PUSH_TOKEN`.
+
+`git_fetch` is the inbound half: it refreshes the repo's server-side mirror with the clone key, bundles the requested branches and fetches them into the sandbox as `mirror/<branch>`. The agent then runs `git rebase mirror/master`, or `git reset --hard mirror/factory/<name>` when a human rewrote its branch. The sandbox still has no remote and no credential.

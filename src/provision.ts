@@ -14,7 +14,7 @@ function cleanEnv(extra: Record<string, string> = {}): Record<string, string> {
   return { ...out, GIT_TERMINAL_PROMPT: "0", ...extra };
 }
 
-async function run(argv: string[], o: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {}): Promise<{ code: number; stderr: string }> {
+export async function run(argv: string[], o: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {}): Promise<{ code: number; stderr: string }> {
   const p = Bun.spawn(argv, { cwd: o.cwd, env: o.env ?? cleanEnv(), stdout: "ignore", stderr: "pipe" });
   const t = setTimeout(() => p.kill("SIGKILL"), o.timeoutMs ?? 600_000);
   try {
@@ -24,7 +24,7 @@ async function run(argv: string[], o: { cwd?: string; env?: Record<string, strin
 }
 
 /** Raw bytes of a command's stdout (bundles and tars are binary). */
-async function bytes(argv: string[], o: { cwd?: string; env?: Record<string, string> } = {}): Promise<Uint8Array> {
+export async function bytes(argv: string[], o: { cwd?: string; env?: Record<string, string> } = {}): Promise<Uint8Array> {
   const p = Bun.spawn(argv, { cwd: o.cwd, env: o.env ?? cleanEnv(), stdout: "pipe", stderr: "pipe" });
   // arrayBuffer() + Uint8Array, not .bytes(): Bun 1.3.14 returns an ArrayBuffer from .bytes() once a
   // process stream passes ~100 KB (big go.sum files, every repo bundle), which hash.update rejects.
